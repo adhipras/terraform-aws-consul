@@ -1,2 +1,3 @@
-# terraform-aws-consul
-Terraform configuration files for deploying HashiCorp's Consul cluster on Amazon Web Service.
+# HashiCorp's Consul Cluster Deployment on Amazon Web Service
+
+[Terraform](https://www.terraform.io/) configuration files for deploying [HashiCorp](https://www.hashicorp.com/)'s [Consul](https://www.hashicorp.com/products/consul) cluster based on [Amazon Web Service](https://aws.amazon.com/)'s [Quick Starts guidelines](https://aws.amazon.com/quickstart/architecture/consul/).
