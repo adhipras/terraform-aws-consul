@@ -63,21 +63,21 @@ variable "vpc_cidr" {
 }
 
 ################################################################################
-# Private Subnetworks
+# Private Subnetwork(s)
 ################################################################################
 
-variable "private_subnetworks_cidr" {
-  description = "The list of private subnetworks to create in CIDR block format."
+variable "private_subnetwork_cidr" {
+  description = "The list of private subnetwork(s) to create in CIDR block format."
   type        = list(string)
   default     = ["10.0.0.0/19", "10.0.32.0/19", "10.0.64.0/19"]
 }
 
 ################################################################################
-# Public Subnetworks
+# Public Subnetwork(s)
 ################################################################################
 
-variable "public_subnetworks_cidr" {
-  description = "The list of public subnetworks to create in CIDR block format."
+variable "public_subnetwork_cidr" {
+  description = "The list of public subnetwork(s) to create in CIDR block format."
   type        = list(string)
   default     = ["10.0.128.0/20", "10.0.144.0/20", "10.0.160.0/20"]
 }

@@ -28,14 +28,14 @@ resource "aws_vpc" "vpc" {
 }
 
 ################################################################################
-# Private Subnetworks
+# Private Subnetwork(s)
 ################################################################################
 
 resource "aws_subnet" "private" {
   count             = var.cluster_size
   vpc_id            = aws_vpc.vpc.id
   availability_zone = data.aws_availability_zones.available.names[count.index]
-  cidr_block        = var.private_subnetworks_cidr[count.index]
+  cidr_block        = var.private_subnetwork_cidr[count.index]
 
   tags = {
     Name = "${var.prefix}-subnet-private-${var.map_to_zone[count.index]}"
@@ -43,14 +43,14 @@ resource "aws_subnet" "private" {
 }
 
 ################################################################################
-# Public Subnetworks
+# Public Subnetwork(s)
 ################################################################################
 
 resource "aws_subnet" "public" {
   count                   = var.cluster_size
   vpc_id                  = aws_vpc.vpc.id
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  cidr_block              = var.public_subnetworks_cidr[count.index]
+  cidr_block              = var.public_subnetwork_cidr[count.index]
   map_public_ip_on_launch = true
 
   tags = {
