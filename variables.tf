@@ -73,6 +73,16 @@ variable "public_subnetwork_cidr" {
 }
 
 ################################################################################
+# SSH Key
+################################################################################
+
+variable "ssh_key_name" {
+  description = "The Amazon Web Service key pair to use for resource."
+  type        = string
+  default     = "adhipras"
+}
+
+################################################################################
 # Bastion
 ################################################################################
 
@@ -82,8 +92,12 @@ variable "bastion_instance_type" {
   default     = "t3.small"
 }
 
-variable "bastion_key_name" {
-  description = "The Amazon Web Service key pair to use for resource."
+################################################################################
+# Consul
+################################################################################
+
+variable "consul_instance_type" {
+  description = "The type of Consul instance(s)."
   type        = string
-  default     = "bastion"
+  default     = "m5.large"
 }

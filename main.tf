@@ -216,7 +216,7 @@ resource "aws_launch_configuration" "bastion" {
   image_id               = data.aws_ami.ubuntu.id
   instance_type          = var.bastion_instance_type
   security_groups        = [aws_security_group.ssh_public.id]
-  key_name               = var.bastion_key_name
+  key_name               = var.ssh_key_name
 
   lifecycle {
     create_before_destroy = true
