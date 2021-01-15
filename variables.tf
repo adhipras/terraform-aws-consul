@@ -25,17 +25,7 @@ variable "region" {
 variable "prefix" {
   description = "The affix attached to the beginning of the resource name."
   type        = string
-  default     = "aws-quickstart-consul"
-}
-
-################################################################################
-# Cluster Size
-################################################################################
-
-variable "cluster_size" {
-  description = "The number of cluster(s) to create."
-  type        = number
-  default     = 3
+  default     = "aws"
 }
 
 ################################################################################
@@ -80,4 +70,20 @@ variable "public_subnetwork_cidr" {
   description = "The list of public subnetwork(s) to create in CIDR block format."
   type        = list(string)
   default     = ["10.0.128.0/20", "10.0.144.0/20", "10.0.160.0/20"]
+}
+
+################################################################################
+# Bastion
+################################################################################
+
+variable "bastion_instance_type" {
+  description = "The type of Bastion instance(s)."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "bastion_key_name" {
+  description = "The Amazon Web Service key pair to use for resource."
+  type        = string
+  default     = "bastion"
 }
