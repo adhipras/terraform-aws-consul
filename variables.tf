@@ -124,7 +124,7 @@ variable "bastion_hosts_max" {
 variable "bastion_instance_type" {
   description = "The type of Bastion instance(s)."
   type        = string
-  default     = "t3.small"
+  default     = "t3.micro"
 }
 
 ################################################################################
