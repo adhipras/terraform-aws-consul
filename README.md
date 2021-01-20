@@ -22,7 +22,13 @@ $ git clone git@github.com:adhipras/terraform-aws-consul.git
 $ cd terraform-aws-consul
 ```
 
-3. Execute the Terraform commands.
+3. Create a `.tfvars` file that contains your [Amazon Web Service access and secret keys](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
+```
+access_key = "XXX"
+secret_key = "xxx"
+```
+
+4. Execute the Terraform commands.
 ```sh
 $ terraform init
 $ terraform plan
