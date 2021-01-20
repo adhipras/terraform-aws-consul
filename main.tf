@@ -3,8 +3,9 @@
 ################################################################################
 
 provider "aws" {
-  shared_credentials_file = var.credentials
-  region                  = var.region
+  access_key = var.access_key
+  secret_key = var.secret_key
+  region     = var.region
 }
 
 ################################################################################
@@ -29,7 +30,7 @@ resource "aws_vpc" "vpc" {
 }
 
 ################################################################################
-# Private Subnetwork(s)
+# Private Subnetworks
 ################################################################################
 
 resource "aws_subnet" "private" {
@@ -45,7 +46,7 @@ resource "aws_subnet" "private" {
 }
 
 ################################################################################
-# Public Subnetwork(s)
+# Public Subnetworks
 ################################################################################
 
 resource "aws_subnet" "public" {
@@ -65,7 +66,7 @@ resource "aws_subnet" "public" {
 # Internet Gateway
 ################################################################################
 
-resource "aws_internet_gateway" "internet_gateway" {
+resource "aws_internet_gateway" "internet" {
   depends_on = [aws_vpc.vpc]
   vpc_id     = aws_vpc.vpc.id
 
@@ -75,12 +76,12 @@ resource "aws_internet_gateway" "internet_gateway" {
 }
 
 resource "aws_route_table" "internet" {
-  depends_on = [aws_internet_gateway.internet_gateway]
+  depends_on = [aws_internet_gateway.internet]
   vpc_id     = aws_vpc.vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.internet_gateway.id
+    gateway_id = aws_internet_gateway.internet.id
   }
 
   tags = {
@@ -99,8 +100,8 @@ resource "aws_route_table_association" "internet" {
 # NAT Gateways
 ################################################################################
 
-resource "aws_eip" "nat_gateway" {
-  depends_on = [aws_internet_gateway.internet_gateway]
+resource "aws_eip" "nat" {
+  depends_on = [aws_internet_gateway.internet]
   count      = length(aws_subnet.public)
   vpc        = true
 
@@ -109,25 +110,25 @@ resource "aws_eip" "nat_gateway" {
   }
 }
 
-resource "aws_nat_gateway" "nat_gateway" {
-  depends_on    = [aws_eip.nat_gateway]
+resource "aws_nat_gateway" "nat" {
+  depends_on    = [aws_eip.nat]
   count         = length(aws_subnet.public)
   subnet_id     = element(aws_subnet.public.*.id, count.index)
-  allocation_id = element(aws_eip.nat_gateway.*.id, count.index)
+  allocation_id = element(aws_eip.nat.*.id, count.index)
 
   tags = {
-    Name = "${var.prefix}-nat-gateway-${var.map_to_zone[count.index]}"
+    Name = "${var.prefix}-nat-${var.map_to_zone[count.index]}"
   }
 }
 
 resource "aws_route_table" "nat" {
-  depends_on = [aws_nat_gateway.nat_gateway]
-  count      = length(aws_nat_gateway.nat_gateway)
+  depends_on = [aws_nat_gateway.nat]
+  count      = length(aws_nat_gateway.nat)
   vpc_id     = aws_vpc.vpc.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat_gateway[count.index].id
+    nat_gateway_id = aws_nat_gateway.nat[count.index].id
   }
 
   tags = {
@@ -143,53 +144,7 @@ resource "aws_route_table_association" "nat" {
 }
 
 ################################################################################
-# Security Groups
-################################################################################
-
-resource "aws_security_group" "ssh_public" {
-  name        = "${var.prefix}-sg-ssh-public"
-  description = "Allow SSH inbound traffic."
-  vpc_id      = aws_vpc.vpc.id
-
-  ingress {
-    description = "SSH from public network."
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_security_group" "ssh_private" {
-  name        = "${var.prefix}-sg-ssh-private"
-  description = "Allow SSH inbound traffic."
-  vpc_id      = aws_vpc.vpc.id
-
-  ingress {
-    description = "SSH to private network."
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.public_subnetwork_cidr
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-################################################################################
-# AWS AMI
+# Ubuntu AMI
 ################################################################################
 
 data "aws_ami" "ubuntu" {
@@ -202,50 +157,261 @@ data "aws_ami" "ubuntu" {
   }
 
   filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+
+  filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
 }
 
 ################################################################################
-# AWS EC2 Bastion Instance Template
+# Bastion Security Group
 ################################################################################
 
-resource "aws_launch_configuration" "bastion" {
-  name_prefix            = "${var.prefix}-bastion-template-"
-  image_id               = data.aws_ami.ubuntu.id
-  instance_type          = var.bastion_instance_type
-  security_groups        = [aws_security_group.ssh_public.id]
-  key_name               = var.ssh_key_name
+resource "aws_security_group" "bastion" {
+  name        = "${var.prefix}-sg-bastion"
+  description = "Allow SSH inbound traffic."
+  vpc_id      = aws_vpc.vpc.id
 
-  lifecycle {
-    create_before_destroy = true
+  ingress {
+    description = "SSH from the Internet."
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
 ################################################################################
-# AWS Bastion Autoscalling Group
+# Bastion Host Instances
 ################################################################################
 
-resource "aws_autoscaling_group" "bastion" {
-  launch_configuration = aws_launch_configuration.bastion.name
-  min_size             = 1
-  max_size             = 3
-  desired_capacity     = 1
+resource "aws_instance" "bastion" {
+  depends_on             = [aws_security_group.bastion]
+  count                  = length(var.public_subnetwork_cidr)
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.bastion_instance_type
+  subnet_id              = aws_subnet.public[count.index].id
+  vpc_security_group_ids = [aws_security_group.bastion.id]
+  key_name               = var.ssh_key_name
 
-  vpc_zone_identifier  = [
-    aws_subnet.public[0].id,
-    aws_subnet.public[1].id,
-    aws_subnet.public[2].id
-  ]
+  tags = {
+    Name   = "${var.prefix}-bastion-host-${count.index + 1}"
+  }
+}
 
-  tag {
-    key                 = "Name"
-    value               = "${var.prefix}-bastion-${formatdate("YYYYMMDD-HHmmss", timestamp())}"
-    propagate_at_launch = true
+################################################################################
+# SSH Security Group
+################################################################################
+
+resource "aws_security_group" "ssh" {
+  depends_on  = [aws_instance.bastion]
+  name        = "${var.prefix}-sg-ssh"
+  description = "Allow SSH inbound traffic."
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "SSH from Bastion host(s)."
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = formatlist("%s%s", aws_instance.bastion.*.private_ip, "/32")
   }
 
-  lifecycle {
-    create_before_destroy = true
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+################################################################################
+# Consul Security Group
+################################################################################
+
+resource "aws_security_group" "consul" {
+  name        = "${var.prefix}-sg-consul"
+  description = "Allow inbound traffic to Consul instances."
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "Consul RPC."
+    from_port   = var.consul_rpc_port
+    to_port     = var.consul_rpc_port
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul Serf LAN (TCP)."
+    from_port   = var.consul_serf_lan_port
+    to_port     = var.consul_serf_lan_port
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul Serf LAN (UDP)."
+    from_port   = var.consul_serf_lan_port
+    to_port     = var.consul_serf_lan_port
+    protocol    = "udp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul Serf WAN (TCP)."
+    from_port   = var.consul_serf_wan_port
+    to_port     = var.consul_serf_wan_port
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul Serf WAN (UDP)."
+    from_port   = var.consul_serf_wan_port
+    to_port     = var.consul_serf_wan_port
+    protocol    = "udp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul UI (HTTP)."
+    from_port   = var.consul_ui_http_port
+    to_port     = var.consul_ui_http_port
+    protocol    = "tcp"
+    cidr_blocks = var.public_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul DNS (TCP)."
+    from_port   = var.consul_dns_port
+    to_port     = var.consul_dns_port
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  ingress {
+    description = "Consul DNS (UDP)."
+    from_port   = var.consul_dns_port
+    to_port     = var.consul_dns_port
+    protocol    = "udp"
+    cidr_blocks = var.private_subnetwork_cidr
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+################################################################################
+# Consul Instances
+################################################################################
+
+resource "aws_instance" "consul" {
+  depends_on             = [aws_instance.bastion, aws_nat_gateway.nat, aws_route_table.nat, aws_route_table_association.nat]
+  count                  = var.consul_server_nodes
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.consul_instance_type
+  subnet_id              = aws_subnet.private[count.index].id
+  vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.consul.id]
+  key_name               = var.ssh_key_name
+
+  root_block_device {
+    volume_size = 50
+  }
+
+  tags = {
+    Name       = "${var.prefix}-consul-server-${count.index + 1}"
+    ConsulRole = var.consul_tag_value
+  }
+
+  connection {
+    type         = "ssh"
+    bastion_host = aws_instance.bastion[count.index].public_ip
+    host         = self.private_ip
+    user         = "ubuntu"
+    private_key  = file(var.private_key)
+  }
+
+  provisioner "file" {
+    source      = "consul.sh"
+    destination = "/tmp/consul.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/consul.sh",
+      "/tmp/consul.sh ${var.access_key} ${var.secret_key} ${var.region} ${var.consul_server_nodes} ${self.private_ip} ${var.prefix}-consul-server-${count.index + 1} ${var.consul_tag_key} ${var.consul_tag_value}"
+    ]
+  }
+}
+
+################################################################################
+# Consul Elastic Load Balancer Security Group
+################################################################################
+
+resource "aws_security_group" "elb_consul" {
+  name        = "${var.prefix}-sg-elb-consul"
+  description = "Allow HTTP inbound traffic."
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "HTTP from the Internet."
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+################################################################################
+# Consul Elastic Load Balancer
+################################################################################
+
+resource "aws_elb" "consul" {
+  depends_on      = [aws_instance.consul]
+  name            = "${var.prefix}-elb-consul"
+  subnets         = aws_subnet.public.*.id
+  security_groups = [aws_security_group.elb_consul.id]
+  instances       = aws_instance.consul.*.id
+
+  listener {
+    lb_port           = 80
+    lb_protocol       = "http"
+    instance_port     = var.consul_ui_http_port
+    instance_protocol = "http"
+  }
+
+  health_check {
+    healthy_threshold   = 3
+    unhealthy_threshold = 2
+    timeout             = 5
+    target              = "HTTP:8500/v1/status/leader"
+    interval            = 30
+  }
+
+  tags = {
+    Name = "${var.prefix}-elb-consul"
   }
 }
