@@ -20,13 +20,10 @@ data "aws_availability_zones" "available" {
 # VPC
 ################################################################################
 
-resource "aws_vpc" "vpc" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-
-  tags = {
-    Name = "${var.prefix}-vpc"
-  }
+module "vpc" {
+  source     = "./modules/vpc"
+  name       = "${var.prefix}-vpc"
+  cidr_block = var.vpc_cidr
 }
 
 ################################################################################
@@ -34,9 +31,9 @@ resource "aws_vpc" "vpc" {
 ################################################################################
 
 resource "aws_subnet" "private" {
-  depends_on        = [aws_vpc.vpc]
+  depends_on        = [module.vpc]
   count             = length(var.private_subnetwork_cidr)
-  vpc_id            = aws_vpc.vpc.id
+  vpc_id            = module.vpc.id
   availability_zone = data.aws_availability_zones.available.names[count.index]
   cidr_block        = var.private_subnetwork_cidr[count.index]
 
@@ -50,9 +47,9 @@ resource "aws_subnet" "private" {
 ################################################################################
 
 resource "aws_subnet" "public" {
-  depends_on              = [aws_vpc.vpc]
+  depends_on              = [module.vpc]
   count                   = length(var.public_subnetwork_cidr)
-  vpc_id                  = aws_vpc.vpc.id
+  vpc_id                  = module.vpc.id
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   cidr_block              = var.public_subnetwork_cidr[count.index]
   map_public_ip_on_launch = true
@@ -67,8 +64,8 @@ resource "aws_subnet" "public" {
 ################################################################################
 
 resource "aws_internet_gateway" "internet" {
-  depends_on = [aws_vpc.vpc]
-  vpc_id     = aws_vpc.vpc.id
+  depends_on = [module.vpc]
+  vpc_id     = module.vpc.id
 
   tags = {
     Name = "${var.prefix}-vpc-internet-gateway"
@@ -77,7 +74,7 @@ resource "aws_internet_gateway" "internet" {
 
 resource "aws_route_table" "internet" {
   depends_on = [aws_internet_gateway.internet]
-  vpc_id     = aws_vpc.vpc.id
+  vpc_id     = module.vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -124,7 +121,7 @@ resource "aws_nat_gateway" "nat" {
 resource "aws_route_table" "nat" {
   depends_on = [aws_nat_gateway.nat]
   count      = length(aws_nat_gateway.nat)
-  vpc_id     = aws_vpc.vpc.id
+  vpc_id     = module.vpc.id
 
   route {
     cidr_block     = "0.0.0.0/0"
@@ -174,7 +171,7 @@ data "aws_ami" "ubuntu" {
 resource "aws_security_group" "bastion" {
   name        = "${var.prefix}-sg-bastion"
   description = "Allow SSH inbound traffic."
-  vpc_id      = aws_vpc.vpc.id
+  vpc_id      = module.vpc.id
 
   ingress {
     description = "SSH from the Internet."
@@ -218,7 +215,7 @@ resource "aws_security_group" "ssh" {
   depends_on  = [aws_instance.bastion]
   name        = "${var.prefix}-sg-ssh"
   description = "Allow SSH inbound traffic."
-  vpc_id      = aws_vpc.vpc.id
+  vpc_id      = module.vpc.id
 
   ingress {
     description = "SSH from Bastion host(s)."
@@ -243,7 +240,7 @@ resource "aws_security_group" "ssh" {
 resource "aws_security_group" "consul" {
   name        = "${var.prefix}-sg-consul"
   description = "Allow inbound traffic to Consul instances."
-  vpc_id      = aws_vpc.vpc.id
+  vpc_id      = module.vpc.id
 
   ingress {
     description = "Consul RPC."
@@ -367,7 +364,7 @@ resource "aws_instance" "consul" {
 resource "aws_security_group" "elb_consul" {
   name        = "${var.prefix}-sg-elb-consul"
   description = "Allow HTTP inbound traffic."
-  vpc_id      = aws_vpc.vpc.id
+  vpc_id      = module.vpc.id
 
   ingress {
     description = "HTTP from the Internet."
