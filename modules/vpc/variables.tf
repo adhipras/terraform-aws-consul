@@ -1,5 +1,5 @@
 variable "name" {
-  description = "Name to be used on all the resources as identifier."
+  description = "Name to be used as identifier."
   type        = string
   default     = ""
 }
