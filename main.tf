@@ -1,71 +1,72 @@
-################################################################################
+#-------------------------------------------------------------------------------
 # Cloud Provider
-################################################################################
+#-------------------------------------------------------------------------------
 
 provider "aws" {
-  access_key = var.access_key
-  secret_key = var.secret_key
-  region     = var.region
+  region = var.region
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
+# VPC
+#-------------------------------------------------------------------------------
+
+resource "aws_vpc" "consul" {
+  cidr_block = var.vpc_cidr_block
+
+  tags = {
+    "Name" = "${var.prefix}-vpc"
+  }
+}
+
+#-------------------------------------------------------------------------------
 # Availability Zones
-################################################################################
+#-------------------------------------------------------------------------------
 
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
-################################################################################
-# VPC
-################################################################################
-
-module "vpc" {
-  source     = "./modules/vpc"
-  name       = "${var.prefix}-vpc"
-  cidr_block = var.vpc_cidr
-}
-
-################################################################################
+#-------------------------------------------------------------------------------
 # Private Subnetworks
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_subnet" "private" {
-  depends_on        = [module.vpc]
-  count             = length(var.private_subnetwork_cidr)
-  vpc_id            = module.vpc.id
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-  cidr_block        = var.private_subnetwork_cidr[count.index]
+  depends_on              = [aws_vpc.consul]
+  count                   = length(var.private_subnet_cidr_block)
+  vpc_id                  = aws_vpc.consul.id
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  cidr_block              = var.private_subnet_cidr_block[count.index]
+  map_public_ip_on_launch = false
 
   tags = {
-    Name = "${var.prefix}-subnet-private-${var.map_to_zone[count.index]}"
+    "Name" = "${var.prefix}-subnet-private-${var.zone[count.index]}"
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Public Subnetworks
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_subnet" "public" {
-  depends_on              = [module.vpc]
-  count                   = length(var.public_subnetwork_cidr)
-  vpc_id                  = module.vpc.id
+  depends_on              = [aws_vpc.consul]
+  count                   = length(var.public_subnet_cidr_block)
+  vpc_id                  = aws_vpc.consul.id
   availability_zone       = data.aws_availability_zones.available.names[count.index]
-  cidr_block              = var.public_subnetwork_cidr[count.index]
+  cidr_block              = var.public_subnet_cidr_block[count.index]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.prefix}-subnet-public-${var.map_to_zone[count.index]}"
+    "Name" = "${var.prefix}-subnet-public-${var.zone[count.index]}"
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Internet Gateway
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_internet_gateway" "internet" {
-  depends_on = [module.vpc]
-  vpc_id     = module.vpc.id
+  depends_on = [aws_vpc.consul]
+  vpc_id     = aws_vpc.consul.id
 
   tags = {
     Name = "${var.prefix}-vpc-internet-gateway"
@@ -74,7 +75,7 @@ resource "aws_internet_gateway" "internet" {
 
 resource "aws_route_table" "internet" {
   depends_on = [aws_internet_gateway.internet]
-  vpc_id     = module.vpc.id
+  vpc_id     = aws_vpc.consul.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -82,7 +83,7 @@ resource "aws_route_table" "internet" {
   }
 
   tags = {
-    Name = "${var.prefix}-route-internet"
+    Name = "${var.prefix}-route-internet-gateway"
   }
 }
 
@@ -93,9 +94,9 @@ resource "aws_route_table_association" "internet" {
   subnet_id      = aws_subnet.public[count.index].id
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # NAT Gateways
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_eip" "nat" {
   depends_on = [aws_internet_gateway.internet]
@@ -103,25 +104,25 @@ resource "aws_eip" "nat" {
   vpc        = true
 
   tags = {
-    Name = "${var.prefix}-eip-nat-${var.map_to_zone[count.index]}"
+    Name = "${var.prefix}-eip-nat-${var.zone[count.index]}"
   }
 }
 
 resource "aws_nat_gateway" "nat" {
   depends_on    = [aws_eip.nat]
   count         = length(aws_subnet.public)
-  subnet_id     = element(aws_subnet.public.*.id, count.index)
-  allocation_id = element(aws_eip.nat.*.id, count.index)
+  subnet_id     = aws_subnet.public[count.index].id
+  allocation_id = aws_eip.nat[count.index].id
 
   tags = {
-    Name = "${var.prefix}-nat-${var.map_to_zone[count.index]}"
+    Name = "${var.prefix}-nat-${var.zone[count.index]}"
   }
 }
 
 resource "aws_route_table" "nat" {
   depends_on = [aws_nat_gateway.nat]
   count      = length(aws_nat_gateway.nat)
-  vpc_id     = module.vpc.id
+  vpc_id     = aws_vpc.consul.id
 
   route {
     cidr_block     = "0.0.0.0/0"
@@ -129,7 +130,7 @@ resource "aws_route_table" "nat" {
   }
 
   tags = {
-    Name = "${var.prefix}-route-nat-${var.map_to_zone[count.index]}"
+    Name = "${var.prefix}-route-nat-${var.zone[count.index]}"
   }
 }
 
@@ -140,9 +141,9 @@ resource "aws_route_table_association" "nat" {
   subnet_id      = aws_subnet.private[count.index].id
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Ubuntu AMI
-################################################################################
+#-------------------------------------------------------------------------------
 
 data "aws_ami" "ubuntu" {
   owners      = ["099720109477"]
@@ -164,14 +165,24 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
+# SSH Key Pair
+#-------------------------------------------------------------------------------
+
+resource "aws_key_pair" "ssh" {
+  key_name   = "${var.prefix}-ssh-key"
+  public_key = file(var.ssh_public_key)
+}
+
+#-------------------------------------------------------------------------------
 # Bastion Security Group
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_security_group" "bastion" {
+  depends_on  = [aws_vpc.consul]
   name        = "${var.prefix}-sg-bastion"
   description = "Allow SSH inbound traffic."
-  vpc_id      = module.vpc.id
+  vpc_id      = aws_vpc.consul.id
 
   ingress {
     description = "SSH from the Internet."
@@ -189,36 +200,36 @@ resource "aws_security_group" "bastion" {
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Bastion Host Instances
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_instance" "bastion" {
-  depends_on             = [aws_security_group.bastion]
-  count                  = length(var.public_subnetwork_cidr)
+  depends_on             = [aws_security_group.bastion, aws_key_pair.ssh]
+  count                  = length(aws_subnet.public)
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.bastion_instance_type
   subnet_id              = aws_subnet.public[count.index].id
   vpc_security_group_ids = [aws_security_group.bastion.id]
-  key_name               = var.ssh_key_name
+  key_name               = aws_key_pair.ssh.key_name
 
   tags = {
     Name   = "${var.prefix}-bastion-host-${count.index + 1}"
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # SSH Security Group
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_security_group" "ssh" {
   depends_on  = [aws_instance.bastion]
   name        = "${var.prefix}-sg-ssh"
   description = "Allow SSH inbound traffic."
-  vpc_id      = module.vpc.id
+  vpc_id      = aws_vpc.consul.id
 
   ingress {
-    description = "SSH from Bastion host(s)."
+    description = "SSH from Bastion host instance(s)."
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -233,21 +244,48 @@ resource "aws_security_group" "ssh" {
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
+# Consul IAM
+#-------------------------------------------------------------------------------
+
+resource "aws_iam_role" "consul" {
+  name               = "${var.prefix}-auto-join"
+  assume_role_policy = file("${path.module}/templates/assume-role.json")
+}
+
+resource "aws_iam_policy" "consul" {
+  name        = "${var.prefix}-auto-join"
+  description = "Allows Consul nodes to describe instances for joining."
+  policy      = file("${path.module}/templates/describe-instances.json")
+}
+
+resource "aws_iam_policy_attachment" "consul" {
+  name       = "${var.prefix}-auto-join"
+  roles      = [aws_iam_role.consul.name]
+  policy_arn = aws_iam_policy.consul.arn
+}
+
+resource "aws_iam_instance_profile" "consul" {
+  name = "${var.prefix}-auto-join"
+  role = aws_iam_role.consul.name
+}
+
+#-------------------------------------------------------------------------------
 # Consul Security Group
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_security_group" "consul" {
-  name        = "${var.prefix}-sg-consul"
+  depends_on  = [aws_vpc.consul]
+  name        = "${var.prefix}-sg-server"
   description = "Allow inbound traffic to Consul instances."
-  vpc_id      = module.vpc.id
+  vpc_id      = aws_vpc.consul.id
 
   ingress {
     description = "Consul RPC."
     from_port   = var.consul_rpc_port
     to_port     = var.consul_rpc_port
     protocol    = "tcp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -255,7 +293,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_serf_lan_port
     to_port     = var.consul_serf_lan_port
     protocol    = "tcp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -263,7 +301,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_serf_lan_port
     to_port     = var.consul_serf_lan_port
     protocol    = "udp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -271,7 +309,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_serf_wan_port
     to_port     = var.consul_serf_wan_port
     protocol    = "tcp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -279,7 +317,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_serf_wan_port
     to_port     = var.consul_serf_wan_port
     protocol    = "udp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -287,7 +325,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_ui_http_port
     to_port     = var.consul_ui_http_port
     protocol    = "tcp"
-    cidr_blocks = var.public_subnetwork_cidr
+    cidr_blocks = var.public_subnet_cidr_block
   }
 
   ingress {
@@ -295,7 +333,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_dns_port
     to_port     = var.consul_dns_port
     protocol    = "tcp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   ingress {
@@ -303,7 +341,7 @@ resource "aws_security_group" "consul" {
     from_port   = var.consul_dns_port
     to_port     = var.consul_dns_port
     protocol    = "udp"
-    cidr_blocks = var.private_subnetwork_cidr
+    cidr_blocks = var.private_subnet_cidr_block
   }
 
   egress {
@@ -314,9 +352,9 @@ resource "aws_security_group" "consul" {
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Consul Instances
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_instance" "consul" {
   depends_on             = [aws_instance.bastion, aws_nat_gateway.nat, aws_route_table.nat, aws_route_table_association.nat]
@@ -325,46 +363,53 @@ resource "aws_instance" "consul" {
   instance_type          = var.consul_instance_type
   subnet_id              = aws_subnet.private[count.index].id
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.consul.id]
-  key_name               = var.ssh_key_name
+  iam_instance_profile   = aws_iam_instance_profile.consul.name
+  key_name               = aws_key_pair.ssh.key_name
 
   root_block_device {
     volume_size = 50
   }
 
-  tags = {
-    Name       = "${var.prefix}-consul-server-${count.index + 1}"
-    ConsulRole = var.consul_tag_value
-  }
+  tags = map(
+    "Name", "${var.prefix}-server-${count.index + 1}",
+    var.consul_tag_key, var.consul_tag_value
+  )
 
   connection {
     type         = "ssh"
     bastion_host = aws_instance.bastion[count.index].public_ip
     host         = self.private_ip
     user         = "ubuntu"
-    private_key  = file(var.private_key)
-  }
-
-  provisioner "file" {
-    source      = "consul.sh"
-    destination = "/tmp/consul.sh"
+    private_key  = file(var.ssh_private_key)
   }
 
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/consul.sh",
-      "/tmp/consul.sh ${var.access_key} ${var.secret_key} ${var.region} ${var.consul_server_nodes} ${self.private_ip} ${var.prefix}-consul-server-${count.index + 1} ${var.consul_tag_key} ${var.consul_tag_value}"
+      "sudo apt install --yes software-properties-common",
+      "sudo apt-add-repository --yes --update ppa:ansible/ansible",
+      "sudo apt install --yes ansible"
     ]
+  }
+
+  provisioner "file" {
+    source      = "ansible"
+    destination = "/home/ubuntu"
+  }
+
+  provisioner "remote-exec" {
+    inline = ["ansible-playbook /home/ubuntu/ansible/consul.yml --extra-vars \"consul_server_nodes=${var.consul_server_nodes} consul_server_address=${self.private_ip} consul_server_name=${var.prefix}-server-${count.index + 1} consul_tag_key=${var.consul_tag_key} consul_tag_value=${var.consul_tag_value}\""]
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Consul Elastic Load Balancer Security Group
-################################################################################
+#-------------------------------------------------------------------------------
 
-resource "aws_security_group" "elb_consul" {
-  name        = "${var.prefix}-sg-elb-consul"
+resource "aws_security_group" "elb" {
+  depends_on  = [aws_vpc.consul]
+  name        = "${var.prefix}-sg-elb"
   description = "Allow HTTP inbound traffic."
-  vpc_id      = module.vpc.id
+  vpc_id      = aws_vpc.consul.id
 
   ingress {
     description = "HTTP from the Internet."
@@ -382,15 +427,15 @@ resource "aws_security_group" "elb_consul" {
   }
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Consul Elastic Load Balancer
-################################################################################
+#-------------------------------------------------------------------------------
 
 resource "aws_elb" "consul" {
   depends_on      = [aws_instance.consul]
-  name            = "${var.prefix}-elb-consul"
+  name            = "${var.prefix}-elb"
   subnets         = aws_subnet.public.*.id
-  security_groups = [aws_security_group.elb_consul.id]
+  security_groups = [aws_security_group.elb.id]
   instances       = aws_instance.consul.*.id
 
   listener {
@@ -409,6 +454,6 @@ resource "aws_elb" "consul" {
   }
 
   tags = {
-    Name = "${var.prefix}-elb-consul"
+    Name = "${var.prefix}-elb"
   }
 }
