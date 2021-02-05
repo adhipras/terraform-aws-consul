@@ -1,0 +1,19 @@
+{
+  "addresses": {
+    "http": "0.0.0.0"
+  },
+  "advertise_addr": "{{ consul_server_address }}",
+  "bind_addr": "{{ consul_server_address }}",
+  "bootstrap_expect": {{ consul_server_nodes }},
+  "client_addr": "0.0.0.0",
+  "data_dir": "/opt/consul/data",
+  "datacenter": "consul-datacenter",
+  "disable_remote_exec": true,
+  "disable_update_check": true,
+  "leave_on_terminate" : true,
+  "log_level": "warn",
+  "node_name": "{{ consul_server_name }}",
+  "retry_join": ["provider=aws tag_key={{ consul_tag_key }} tag_value={{ consul_tag_value }}"],
+  "server": true,
+  "ui": true
+}
