@@ -397,7 +397,7 @@ resource "aws_instance" "consul" {
   }
 
   provisioner "remote-exec" {
-    inline = ["ansible-playbook /home/ubuntu/ansible/consul.yml --extra-vars \"consul_server_nodes=${var.consul_server_nodes} consul_server_address=${self.private_ip} consul_server_name=${var.prefix}-server-${count.index + 1} consul_tag_key=${var.consul_tag_key} consul_tag_value=${var.consul_tag_value}\""]
+    inline = ["ansible-playbook /home/ubuntu/ansible/consul.yml --extra-vars \"consul_region=${var.region} consul_server_nodes=${var.consul_server_nodes} consul_server_address=${self.private_ip} consul_server_name=${var.prefix}-server-${count.index + 1} consul_tag_key=${var.consul_tag_key} consul_tag_value=${var.consul_tag_value}\""]
   }
 }
 
