@@ -12,7 +12,7 @@
     package:
       name: "*"
       state: latest
-  - name: Fetching Consul current version
+  - name: Checking Consul current version
     uri:
       url: https://checkpoint-api.hashicorp.com/v1/check/consul
       method: "GET"
