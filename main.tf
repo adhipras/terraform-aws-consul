@@ -249,24 +249,25 @@ resource "aws_security_group" "ssh" {
 #-------------------------------------------------------------------------------
 
 resource "aws_iam_role" "consul" {
-  name               = "${var.prefix}-auto-join"
+  name               = "ConsulAssumeRoleForClusterAutoJoin"
+  description        = "Allows Consul nodes to describe instances for joining."
   assume_role_policy = file("${path.module}/templates/assume-role.json")
 }
 
 resource "aws_iam_policy" "consul" {
-  name        = "${var.prefix}-auto-join"
+  name        = "ConsulClusterAutoJoin"
   description = "Allows Consul nodes to describe instances for joining."
   policy      = file("${path.module}/templates/describe-instances.json")
 }
 
 resource "aws_iam_policy_attachment" "consul" {
-  name       = "${var.prefix}-auto-join"
+  name       = "ConsulClusterAutoJoin"
   roles      = [aws_iam_role.consul.name]
   policy_arn = aws_iam_policy.consul.arn
 }
 
 resource "aws_iam_instance_profile" "consul" {
-  name = "${var.prefix}-auto-join"
+  name = "ConsulClusterAutoJoin"
   role = aws_iam_role.consul.name
 }
 
