@@ -151,11 +151,11 @@ variable "consul_dns_port" {
 variable "consul_tag_key" {
   description = "The key of the tag to auto-join Consul cluster on."
   type        = string
-  default     = "ConsulRole"
+  default     = "ConsulCluster"
 }
 
 variable "consul_tag_value" {
   description = "The value of the tag to auto-join Consul cluster on."
   type        = string
-  default     = "Server"
+  default     = "AutoJoin"
 }
