@@ -28,6 +28,11 @@ $ terraform plan
 $ terraform apply
 ```
 
+## References
+
+1. [Consul Deployment Guide](https://learn.hashicorp.com/tutorials/consul/deployment-guide?in=consul/production-deploy)
+2. [Consul Auto-Join Example](https://github.com/hashicorp/consul-ec2-auto-join-example)
+
 ## License
 
 [MIT License](https://opensource.org/licenses/MIT).
