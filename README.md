@@ -8,7 +8,6 @@
 2. [Amazon Web Service account](https://aws.amazon.com/free/)
 3. [Identity and Access Management (IAM) for your Terraform service account](https://blog.gruntwork.io/an-introduction-to-terraform-f17df9c6d180#a9b0)
 4. [Amazon Web Service Command Line Interface (CLI)](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
-5. [Amazon Web Service Elastic Compute Cloud (EC2) key pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair)
 
 ## Usage
 
@@ -22,13 +21,7 @@ $ git clone git@github.com:adhipras/terraform-aws-consul.git
 $ cd terraform-aws-consul
 ```
 
-3. Create a `terraform.tfvars` file that contains your [Amazon Web Service access and secret keys](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
-```
-access_key = "XXX"
-secret_key = "xxx"
-```
-
-4. Execute the Terraform commands.
+3. Execute the Terraform commands.
 ```sh
 $ terraform init
 $ terraform plan
