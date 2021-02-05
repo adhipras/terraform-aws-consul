@@ -1,20 +1,6 @@
-################################################################################
-# Credentials
-################################################################################
-
-variable "access_key" {
-  description = "The Amazon Web Service access key."
-  type        = string
-}
-
-variable "secret_key" {
-  description = "The Amazon Web Service secret key."
-  type        = string
-}
-
-################################################################################
+#-------------------------------------------------------------------------------
 # Region
-################################################################################
+#-------------------------------------------------------------------------------
 
 variable "region" {
   description = "The Amazon Web Service region."
@@ -22,21 +8,31 @@ variable "region" {
   default     = "ap-southeast-1"
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Prefix
-################################################################################
+#-------------------------------------------------------------------------------
 
 variable "prefix" {
   description = "The affix attached to the beginning of the resource name."
   type        = string
-  default     = "aws"
+  default     = "consul"
 }
 
-################################################################################
-# Map Index to Zone
-################################################################################
+#-------------------------------------------------------------------------------
+# VPC
+#-------------------------------------------------------------------------------
 
-variable "map_to_zone" {
+variable "vpc_cidr_block" {
+  description = "The CIDR block of the VPC."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+#-------------------------------------------------------------------------------
+# Availability Zones
+#-------------------------------------------------------------------------------
+
+variable "zone" {
   description = "Map count.index number to availability zone suffix."
   type        = map(string)
   default     = {
@@ -46,90 +42,57 @@ variable "map_to_zone" {
   }
 }
 
-################################################################################
-# VPC
-################################################################################
+#-------------------------------------------------------------------------------
+# Private Subnetworks
+#-------------------------------------------------------------------------------
 
-variable "vpc_cidr" {
-  description = "The CIDR of the VPC."
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-################################################################################
-# Private Subnetwork(s)
-################################################################################
-
-variable "private_subnetwork_cidr" {
-  description = "The list of private subnetwork(s) to create in CIDR block format."
+variable "private_subnet_cidr_block" {
+  description = "The list of the CIDR block(s) for the private subnetwork(s)."
   type        = list(string)
   default     = ["10.0.0.0/19", "10.0.32.0/19", "10.0.64.0/19"]
 }
 
-################################################################################
-# Public Subnetwork(s)
-################################################################################
+#-------------------------------------------------------------------------------
+# Public Subnetworks
+#-------------------------------------------------------------------------------
 
-variable "public_subnetwork_cidr" {
-  description = "The list of public subnetwork(s) to create in CIDR block format."
+variable "public_subnet_cidr_block" {
+  description = "The list of the CIDR block(s) for the public subnetwork(s)."
   type        = list(string)
   default     = ["10.0.128.0/20", "10.0.144.0/20", "10.0.160.0/20"]
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # SSH
-################################################################################
+#-------------------------------------------------------------------------------
 
-variable "ssh_port" {
-  description = "The port number for SSH access."
-  type        = number
-  default     = 22
-}
-
-variable "ssh_key_name" {
-  description = "The Amazon Web Service key pair to use for resource."
-  type        = string
-  default     = "aws-quickstart-consul"
-}
-
-variable "private_key" {
-  description = "SSH key to use for the connection."
+variable "ssh_public_key" {
+  description = "SSH public key to use for the connection."
   type        = string
   sensitive   = true
-  default     = "aws-quickstart-consul.pem"
+  default     = "~/.ssh/id_rsa.pub"
 }
 
-################################################################################
+variable "ssh_private_key" {
+  description = "SSH private key to use for the connection."
+  type        = string
+  sensitive   = true
+  default     = "~/.ssh/id_rsa"
+}
+
+#-------------------------------------------------------------------------------
 # Bastion
-################################################################################
-
-variable "bastion_hosts_min" {
-  description = "The minimum number of Bastion hosts that will be created."
-  type        = number
-  default     = 1
-}
-
-variable "bastion_hosts" {
-  description = "The number of Bastion hosts that will be created."
-  type        = number
-  default     = 1
-}
-
-variable "bastion_hosts_max" {
-  description = "The maxmum number of bastion hosts that will be created."
-  type        = number
-  default     = 3
-}
+#-------------------------------------------------------------------------------
 
 variable "bastion_instance_type" {
-  description = "The type of Bastion instance(s)."
+  description = "The type of Bastion host instance(s)."
   type        = string
   default     = "t3.micro"
 }
 
-################################################################################
+#-------------------------------------------------------------------------------
 # Consul
-################################################################################
+#-------------------------------------------------------------------------------
 
 variable "consul_server_nodes" {
   description = "The number of Consul server nodes that will be created. You can choose 3, 5, or 7 nodes."
@@ -138,7 +101,7 @@ variable "consul_server_nodes" {
 }
 
 variable "consul_instance_type" {
-  description = "The type of Consul instance(s)."
+  description = "The type of the Consul server instance(s)."
   type        = string
   default     = "m5.large"
 }
