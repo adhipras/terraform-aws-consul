@@ -398,15 +398,17 @@ resource "aws_instance" "consul" {
   }
 
   provisioner "file" {
-    content     = <<-EOF
-      ---
-      consul_server_nodes: ${var.consul_server_nodes}
-      consul_region: ${var.region}
-      consul_server_address: ${self.private_ip}
-      consul_server_name: ${var.prefix}-server-${count.index + 1}
-      consul_tag_key: ${var.consul_tag_key}
-      consul_tag_value: ${var.consul_tag_value}
-    EOF
+    content     = templatefile(
+      "${path.module}/templates/ansible-role-consul-defaults.tpl",
+      {
+        consul_server_nodes = var.consul_server_nodes,
+        consul_region = var.region,
+        consul_server_address = self.private_ip,
+        consul_server_name = "${var.prefix}-server-${count.index + 1}",
+        consul_tag_key = var.consul_tag_key,
+        consul_tag_value = var.consul_tag_value
+      }
+    )
     destination = "/home/ubuntu/ansible/roles/consul/defaults/main.yml"
   }
 
