@@ -1,0 +1,85 @@
+---
+- name: Installing unzip
+  package:
+    name: unzip
+    state: present
+
+- name: Updating all packages
+  package:
+    name: "*"
+    state: latest
+
+- name: Checking current version of Consul
+  uri:
+    url: https://checkpoint-api.hashicorp.com/v1/check/consul
+    method: "GET"
+    return_content: yes
+    status_code: 200
+    body_format: json
+  register: consul_check
+
+- debug:
+    msg: "Consul current version: {{ consul_check.json.current_version }}"
+
+- name: Downloading Consul
+  unarchive:
+    src: "https://releases.hashicorp.com/consul/{{ consul_check.json.current_version }}/consul_{{ consul_check.json.current_version }}_linux_amd64.zip"
+    dest: /tmp
+    remote_src: yes
+
+- name: Installing Consul
+  copy:
+    src: /tmp/consul
+    dest: /usr/local/bin/consul
+    owner: root
+    group: root
+    mode: +x
+  delegate_to: localhost
+
+- name: Creating Consul user
+  user:
+    name: consul
+    home: /etc/consul.d
+    shell: /bin/false
+    system: yes
+    state: present
+
+- name: Creating Consul directories
+  file:
+    path: /opt/consul/data
+    state: directory
+
+- name: Changing Consul directories' ownership
+  file:
+    path: /opt/consul
+    state: directory
+    recurse: yes
+    owner: consul
+    group: consul
+
+- name: Generating Consul configuration file
+  template:
+    src: "{{ role_path }}/templates/server.json.j2"
+    dest: /etc/consul.d/server.json
+    owner: consul
+    group: consul
+    mode: 0644
+  delegate_to: localhost
+
+- name: Copying Consul systemd service file
+  copy:
+    src: "{{ role_path }}/files/consul.service"
+    dest: /usr/lib/systemd/system/consul.service
+    owner: root
+    group: root
+  delegate_to: localhost
+
+- name: Reloading systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Starting Consul service
+  service:
+    name: consul
+    state: started
+    enabled: yes
