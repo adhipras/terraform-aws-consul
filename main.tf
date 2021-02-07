@@ -251,13 +251,13 @@ resource "aws_security_group" "ssh" {
 resource "aws_iam_role" "consul" {
   name               = "ConsulAssumeRoleForClusterAutoJoin"
   description        = "Allows Consul nodes to describe instances for joining."
-  assume_role_policy = file("${path.module}/templates/assume-role.json")
+  assume_role_policy = file("${path.module}/iam/assume-role.json")
 }
 
 resource "aws_iam_policy" "consul" {
   name        = "ConsulClusterAutoJoin"
   description = "Allows Consul nodes to describe instances for joining."
-  policy      = file("${path.module}/templates/describe-instances.json")
+  policy      = file("${path.module}/iam/describe-instances.json")
 }
 
 resource "aws_iam_policy_attachment" "consul" {
@@ -397,8 +397,21 @@ resource "aws_instance" "consul" {
     destination = "/home/ubuntu"
   }
 
+  provisioner "file" {
+    content     = <<-EOF
+      ---
+      consul_server_nodes: ${var.consul_server_nodes}
+      consul_region: ${var.region}
+      consul_server_address: ${self.private_ip}
+      consul_server_name: ${var.prefix}-server-${count.index + 1}
+      consul_tag_key: ${var.consul_tag_key}
+      consul_tag_value: ${var.consul_tag_value}
+    EOF
+    destination = "/home/ubuntu/ansible/roles/consul/defaults/main.yml"
+  }
+
   provisioner "remote-exec" {
-    inline = ["ansible-playbook /home/ubuntu/ansible/consul.yml --extra-vars \"consul_region=${var.region} consul_server_nodes=${var.consul_server_nodes} consul_server_address=${self.private_ip} consul_server_name=${var.prefix}-server-${count.index + 1} consul_tag_key=${var.consul_tag_key} consul_tag_value=${var.consul_tag_value}\""]
+    inline = ["ansible-playbook /home/ubuntu/ansible/consul.yml"]
   }
 }
 
