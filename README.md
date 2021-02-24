@@ -2,6 +2,8 @@
 
 [Terraform](https://www.terraform.io/) configuration files for deploying [HashiCorp](https://www.hashicorp.com/)'s [Consul](https://www.hashicorp.com/products/consul) cluster based on [Amazon Web Service](https://aws.amazon.com/)'s [Quick Start guidelines](https://aws.amazon.com/quickstart/architecture/consul/).
 
+![Amazon Web Services Quick Start Consul Architecture](https://raw.githubusercontent.com/adhipras/terraform-aws-consul/master/aws-quick-start-consul.png)
+
 ## Prerequisites
 
 1. [Terraform](https://www.terraform.io/)
