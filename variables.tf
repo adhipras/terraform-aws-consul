@@ -87,7 +87,7 @@ variable "ssh_private_key" {
 variable "bastion_instance_type" {
   description = "The type of Bastion host instance(s)."
   type        = string
-  default     = "t3.micro"
+  default     = "t2.micro"
 }
 
 #-------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ variable "consul_server_nodes" {
 variable "consul_instance_type" {
   description = "The type of the Consul server instance(s)."
   type        = string
-  default     = "m5.large"
+  default     = "t2.micro"
 }
 
 variable "consul_rpc_port" {
